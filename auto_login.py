@@ -632,8 +632,11 @@ def gui():
 
         cfg = load_config()
         acc_var.set(cfg["user_id"] if (cfg and cfg.get("user_id")) else "未设置")
+        bad_cfg = bool(cfg and cfg.get("password_enc") and not get_password(cfg))
         if moved:
             warn_var.set("程序所在路径已变更，开机自启会失效，请点「更新自启」")
+        elif bad_cfg:
+            warn_var.set("配置无法解密（可能来自其他电脑），请点「设置」重新输入密码")
         elif int(s.get("fail_count", 0)) >= 3:
             warn_var.set("连续登录失败，密码可能已修改，请点「设置」重新输入")
         elif s.get("last_result") == "fail":
@@ -701,8 +704,16 @@ def gui():
         def reload_services():
             items = fetch_services(cfg)
             names = [d for d, _ in items]
-            if names:
-                root.after(0, lambda: cb.config(values=names))
+            if not names:
+                return
+
+            def apply_names():
+                try:
+                    if cb.winfo_exists():
+                        cb.config(values=names)
+                except Exception:
+                    pass
+            root.after(0, apply_names)
         threading.Thread(target=reload_services, daemon=True).start()
 
         tk.Label(win, text="密码使用 Windows 本机加密保存，不以明文写入磁盘",
@@ -736,10 +747,29 @@ def gui():
             win.destroy()
             refresh()
 
-        tk.Button(bar, text="保存", width=10, font=F,
-                  command=do_save).pack(side="left", padx=6)
-        tk.Button(bar, text="取消", width=10, font=F,
-                  command=win.destroy).pack(side="left", padx=6)
+        def do_remove():
+            if not messagebox.askyesno(
+                    "移除开机自启",
+                    "确定要移除开机自启吗？\n\n只移除计划任务，程序文件不会删除，\n之后仍可手动打开程序使用。",
+                    parent=win):
+                return
+            started = elevated_schtasks(["/delete", "/f", "/tn", TASK_NAME])
+            if not started:
+                messagebox.showwarning("提示", "提权未成功，操作已取消", parent=win)
+                return
+            time.sleep(2)
+            s3 = load_state()
+            s3.pop("installed_exe", None)
+            save_state(s3)
+            win.destroy()
+            refresh()
+
+        tk.Button(bar, text="保存", width=9, font=F,
+                  command=do_save).pack(side="left", padx=5)
+        tk.Button(bar, text="取消", width=9, font=F,
+                  command=win.destroy).pack(side="left", padx=5)
+        tk.Button(bar, text="移除自启", width=10, font=F, fg="#a33",
+                  command=do_remove).pack(side="left", padx=5)
 
     def on_login():
         if st["busy"]:
@@ -770,7 +800,7 @@ def gui():
 
         def work():
             try:
-                if (not st["installed"]) or (not st["matches"]):
+                if (not was_installed) or (not was_matches):
                     xml_path = os.path.join(BASE, "task.xml")
                     with open(xml_path, "w", encoding="utf-16") as f:
                         f.write(task_xml())
@@ -778,9 +808,9 @@ def gui():
                     started = elevated_schtasks(
                         ["/create", "/f", "/tn", TASK_NAME, "/xml", xml_path])
                 else:
-                    flag = "/enable" if st["disabled"] else "/disable"
+                    flag = "/enable" if was_disabled else "/disable"
                     append("正在请求管理员权限"
-                           + ("启用" if st["disabled"] else "停用")
+                           + ("启用" if was_disabled else "停用")
                            + "开机自启，请在弹窗中选「是」...")
                     started = elevated_schtasks(["/change", "/tn", TASK_NAME, flag])
 
@@ -789,7 +819,7 @@ def gui():
                     root.after(0, refresh)
                     return
 
-                time.sleep(3)
+                time.sleep(4)
                 name, inst, dis, mt = read_task()
                 if inst and ((not was_installed) or (not was_matches)):
                     s2 = load_state()
@@ -801,10 +831,8 @@ def gui():
                 else:
                     append("命令已发出，但状态未变化。")
                     append("请在管理员 CMD 中手动执行下面这条，看真实报错：")
-                    append('  schtasks %s'
-                           % ("/change /tn %s /disable" % TASK_NAME
-                              if not st["disabled"]
-                              else "/change /tn %s /enable" % TASK_NAME))
+                    append('  schtasks /change /tn %s %s'
+                           % (TASK_NAME, "/disable" if not was_disabled else "/enable"))
             except Exception as e:
                 append("操作失败：%s" % e)
             root.after(0, refresh)
