@@ -35,6 +35,7 @@ CONFIG_PATH = os.path.join(BASE, "config.json")
 STATE_PATH = os.path.join(BASE, "state.json")
 LOG_DIR = os.path.join(BASE, "logs")
 TASK_NAME = "HHU_AutoLogin"
+VERSION = "1.0.1"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0")
@@ -315,7 +316,10 @@ def run_once():
         return 2
 
     log("=" * 50)
-    log("自动登录启动")
+    log("自动登录启动  v%s" % VERSION)
+    log("账号 %s   服务 %s → 提交值 %s"
+        % (cfg.get("user_id", "?"), cfg.get("service", "?"),
+           service_value(cfg.get("service", ""))))
 
     if not wait_portal(cfg):
         log("超时未检测到校园网，判定不在校园网环境，退出")
@@ -364,6 +368,10 @@ def run_once():
             save_state(state)
             return 0
         log("第 %d 次登录未生效：%s" % (i, msg or "无返回信息"), "WARN")
+        if i == 1 and msg and ("不允许使用本服务" in msg or "绑定账号错误" in msg):
+            log("提示：该账号未开通「%s」。请打开设置，改选你实际购买的运营商"
+                "（校园网/移动/电信/联通），不确定就看浏览器登录页平时点的是哪个"
+                % cfg.get("service", ""), "HINT")
         time.sleep(interval)
 
     st = load_state()
