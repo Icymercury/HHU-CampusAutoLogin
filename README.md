@@ -185,6 +185,14 @@ pyinstaller --noconfirm --onedir --windowed \
 
 ---
 
+## 技术文档
+
+认证协议分析、系统架构、疑难问题排查记录的完整说明见 **[技术文档.pdf](技术文档.pdf)**（14 页）。
+
+源文件为 `技术文档.html`，修改后用浏览器打印即可重新导出 PDF。
+
+---
+
 ## 许可
 
 [MIT License](LICENSE)

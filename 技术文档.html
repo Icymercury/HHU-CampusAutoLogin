@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>河海大学校园网自动登录工具 · 技术文档</title>
+<style>
+@page { size: A4; margin: 20mm 17mm 18mm 17mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 10.5pt; line-height: 1.75; color: #1f2328;
+  margin: 0; padding: 0;
+}
+h1 {
+  font-size: 17pt; font-weight: 600; color: #0f2b46;
+  border-bottom: 2px solid #0f2b46; padding-bottom: 6px;
+  margin: 0 0 14px 0; page-break-before: always; page-break-after: avoid;
+}
+h1.first { page-break-before: avoid; }
+h2 {
+  font-size: 12.5pt; font-weight: 600; color: #16436b;
+  margin: 20px 0 8px 0; page-break-after: avoid;
+}
+h3 { font-size: 11pt; font-weight: 600; color: #333; margin: 14px 0 6px 0; page-break-after: avoid; }
+p { margin: 6px 0; text-align: justify; }
+ul, ol { margin: 6px 0 6px 0; padding-left: 22px; }
+li { margin: 3px 0; }
+code {
+  font-family: Consolas, "Courier New", monospace;
+  background: #f2f4f7; padding: 1px 5px; border-radius: 3px;
+  font-size: 9.5pt; color: #b4370f;
+}
+pre {
+  background: #f7f8fa; border-left: 3px solid #c9d3de;
+  padding: 10px 12px; margin: 8px 0; overflow-x: auto;
+  font-family: Consolas, monospace; font-size: 9pt; line-height: 1.55;
+  page-break-inside: avoid; white-space: pre-wrap; word-break: break-all;
+}
+pre code { background: none; padding: 0; color: #24292e; }
+table {
+  border-collapse: collapse; width: 100%; margin: 10px 0;
+  font-size: 9.5pt; page-break-inside: avoid;
+}
+th {
+  background: #eef2f6; text-align: left; padding: 6px 9px;
+  border: 1px solid #d3dbe4; font-weight: 600; color: #16436b;
+}
+td { padding: 6px 9px; border: 1px solid #d3dbe4; vertical-align: top; }
+.cover {
+  height: 245mm; display: flex; flex-direction: column;
+  justify-content: center; page-break-after: always;
+}
+.cover .tag { font-size: 10pt; color: #6b7785; letter-spacing: 3px; margin-bottom: 18px; }
+.cover h1 {
+  font-size: 30pt; border: none; margin: 0 0 10px 0; page-break-before: avoid;
+  color: #0f2b46; letter-spacing: 1px; line-height: 1.3;
+}
+.cover .sub { font-size: 13pt; color: #4a5a6a; margin-bottom: 40px; }
+.cover .meta { font-size: 10pt; color: #6b7785; line-height: 2; border-top: 1px solid #d3dbe4; padding-top: 16px; }
+.cover .meta b { color: #333; font-weight: 600; display: inline-block; width: 76px; }
+.note {
+  background: #fff8e6; border-left: 3px solid #e0a800;
+  padding: 9px 12px; margin: 10px 0; font-size: 10pt; page-break-inside: avoid;
+}
+.warn {
+  background: #fdeeee; border-left: 3px solid #c0392b;
+  padding: 9px 12px; margin: 10px 0; font-size: 10pt; page-break-inside: avoid;
+}
+.good {
+  background: #edf7f1; border-left: 3px solid #1e8e5a;
+  padding: 9px 12px; margin: 10px 0; font-size: 10pt; page-break-inside: avoid;
+}
+.toc { font-size: 10.5pt; }
+.toc div { padding: 5px 0; border-bottom: 1px dotted #d3dbe4; }
+.toc .n { display: inline-block; width: 34px; color: #16436b; font-weight: 600; }
+.small { font-size: 9pt; color: #6b7785; }
+.kv { font-size: 9.5pt; }
+.kv td:first-child { width: 130px; font-weight: 600; color: #16436b; background: #f7f9fb; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="tag">技 术 文 档</div>
+  <h1>河海大学校园网<br>自动登录工具</h1>
+  <div class="sub">ePortal 认证协议分析与工程实现</div>
+  <div class="meta">
+    <b>项目地址</b> github.com/Icymercury/HHU-CampusAutoLogin<br>
+    <b>认证系统</b> 锐捷 ePortal（eportal.hhu.edu.cn）<br>
+    <b>技术栈</b> Python 3 · tkinter · Windows Task Scheduler<br>
+    <b>文档日期</b> 2026 年 11 月
+  </div>
+</div>
+
+<h1 class="first">目录</h1>
+<div class="toc">
+  <div><span class="n">一</span>项目概述</div>
+  <div><span class="n">二</span>技术选型与架构</div>
+  <div><span class="n">三</span>认证协议逆向分析</div>
+  <div><span class="n">四</span>核心实现要点</div>
+  <div><span class="n">五</span>开机自启与权限模型</div>
+  <div><span class="n">六</span>疑难问题记录</div>
+  <div><span class="n">七</span>打包与分发策略</div>
+  <div><span class="n">八</span>安全设计</div>
+  <div><span class="n">九</span>局限与后续方向</div>
+  <div><span class="n">附录</span>接口参数速查</div>
+</div>
+
+<h1>一、项目概述</h1>
+
+<h2>1.1 需求背景</h2>
+<p>河海大学校园网采用锐捷 ePortal 网页认证。每次开机后需要手动打开浏览器、进入认证门户、点击登录，才能恢复网络访问。对于需要开机即联网的场景（远程桌面、后台下载、无人值守），这个手动步骤成为阻碍。</p>
+
+<h2>1.2 设计目标</h2>
+<ul>
+  <li><b>开机自动完成认证</b>，且不依赖用户登录桌面（不输 PIN 也执行）</li>
+  <li><b>零第三方依赖</b>，不依赖浏览器、驱动或运行时库</li>
+  <li><b>图形界面配置</b>，面向非技术用户，输入一次账号密码即可</li>
+  <li><b>可分发</b>，能打包成单个文件夹供同学下载使用</li>
+</ul>
+
+<h2>1.3 关键结论</h2>
+<div class="good">
+经实测验证：河海大学 ePortal 的密码<b>以明文提交</b>，登录页默认 <code>passwordEncrypt=false</code>。因此无需实现任何加密算法，也不必读取浏览器 Cookie 中的密文——这大幅简化了整个方案。
+</div>
+
+<h1>二、技术选型与架构</h1>
+
+<h2>2.1 三条路线的取舍</h2>
+<table>
+<tr><th style="width:26%">方案</th><th style="width:22%">可靠性</th><th style="width:26%">维护成本</th><th>结论</th></tr>
+<tr>
+  <td>Selenium / Playwright 驱动浏览器</td>
+  <td>中</td>
+  <td>高，浏览器升级或页面改版即失效</td>
+  <td>否决</td>
+</tr>
+<tr>
+  <td><b>直接构造 HTTP 请求</b></td>
+  <td>高</td>
+  <td>低，接口稳定则无需维护</td>
+  <td><b>采用</b></td>
+</tr>
+<tr>
+  <td>第三方客户端</td>
+  <td>高</td>
+  <td>低</td>
+  <td>否决，存在捆绑风险</td>
+</tr>
+</table>
+
+<p>浏览器自动化的根本缺陷在于：它把流程押在页面 DOM 结构上。登录页改一次样式、换一个元素 ID，整个脚本就会失效。而直接调用接口，只要认证协议不变，页面怎么改都不影响。</p>
+
+<h2>2.2 模块划分</h2>
+<pre><code>auto_login.py
+├── DPAPI 加解密      CryptProtectData / CryptUnprotectData（机器级）
+├── 配置管理          config.json + state.json
+├── 网络层            状态探测 / 会话参数提取 / 登录提交
+├── 调度层            Windows 任务计划（schtasks）
+├── 界面层            tkinter 主窗口 + 设置窗口
+└── CLI 入口          --run / --install / --toggle / --status</code></pre>
+
+<h2>2.3 运行流程</h2>
+<pre><code>开机（或登录桌面）
+   ↓ 45 秒延迟，等网卡与 DHCP 就绪
+探测门户是否可达（TCP 80）
+   ↓ 不可达 → 判定不在校园网 → 静默退出
+探测当前是否已在线
+   ↓ 已在线 → 退出
+抓取本次会话的 queryString
+   ↓
+提交认证请求
+   ↓ 失败则重试 3 次，间隔 15 秒
+复验在线状态 → 写日志</code></pre>
+
+<h1>三、认证协议逆向分析</h1>
+
+<h2>3.1 认证流程的三段式</h2>
+<p>锐捷 ePortal 的认证并非简单的表单提交，而是分三段：</p>
+<ol>
+  <li><b>网关拦截</b>：未认证时访问任意 HTTP 站点，请求被网关截获</li>
+  <li><b>下发会话参数</b>：网关返回一个跳转页面，携带本次会话的 <code>wlanuserip</code>、<code>mac</code>、<code>nasip</code> 等参数</li>
+  <li><b>提交认证</b>：向 <code>InterFace.do?method=login</code> 提交账号、密码和上述会话参数</li>
+</ol>
+
+<div class="warn">
+<b>关键陷阱：未认证时网关返回的是 200，不是 302。</b><br>
+跳转由页面内的 JavaScript 完成：
+<pre style="margin:8px 0 0 0"><code>&lt;script&gt;top.self.location.href='http://eportal.hhu.edu.cn/eportal/index.jsp?wlanuserip=...'&lt;/script&gt;</code></pre>
+如果只判断 HTTP 状态码，会把未认证误判为已认证，导致整个登录流程被跳过。正确做法是检查响应正文中是否包含 <code>eportal</code> 字样。
+</div>
+
+<h2>3.2 会话参数必须动态获取</h2>
+<p><code>queryString</code> 中包含每次连接都不同的值：</p>
+<table class="kv">
+<tr><td>wlanuserip</td><td>本机内网 IP，由 DHCP 分配，加密后传输</td></tr>
+<tr><td>mac</td><td>网卡 MAC。注意 Windows 默认开启「随机硬件地址」，每次连接可能变化</td></tr>
+<tr><td>nasip / nasid</td><td>接入设备的标识</td></tr>
+<tr><td>port / nasportid</td><td>接入端口</td></tr>
+</table>
+<p>因此脚本不能硬编码这些参数，必须每次从跳转页面中实时提取。</p>
+
+<h2>3.3 密码加密的真实情况</h2>
+<p>登录页的隐藏字段给出了答案：</p>
+<pre><code>&lt;input id="passwordEncrypt" name="passwordEncrypt" value="false" type="hidden"&gt;
+&lt;input id="publicKeyExponent" name="publicKeyExponent" value="" type="hidden"&gt;
+&lt;input id="publicKeyModulus"  name="publicKeyModulus"  value="" type="hidden"&gt;</code></pre>
+<p>默认值为 <code>false</code>，且 RSA 公钥的两个字段为空——说明<b>学校未启用密码加密</b>，密码以明文提交。</p>
+
+<div class="note">
+那为什么在浏览器里抓包会看到 <code>passwordEncrypt=true</code> 和一大串十六进制密文？<br>
+那是浏览器「记住密码」功能产生的：它把加密后的密文回填到表单，JS 检测到字段已有值，就把标志位置为 <code>true</code> 直接提交。全新输入密码时走的是明文路径。
+</div>
+
+<h2>3.4 运营商参数的双重身份</h2>
+<p>这是本项目最隐蔽的一个坑。登录页的下拉框选项，<b>显示名和提交值不是一回事</b>：</p>
+<table>
+<tr><th style="width:32%">界面显示名</th><th>实际提交值（serviceName）</th></tr>
+<tr><td>校园网(Campus NET)</td><td>校园外网服务(out-campus NET)</td></tr>
+<tr><td>中国移动(CMCC NET)</td><td>中国移动(CMCC NET)</td></tr>
+<tr><td>中国电信(CTCC NET)</td><td>中国电信(常州)</td></tr>
+<tr><td>中国联通(CUCC NET)</td><td>中国联通(常州)</td></tr>
+</table>
+<p>只有中国移动两者恰好同名，其余三个全都不同。如果直接提交显示名，除移动外的账号一律报错「用户不允许使用本服务」。</p>
+<p>这些信息可通过 <code>InterFace.do?method=getServices</code> 接口动态获取，返回的 <code>services</code> 数组中同时包含 <code>serviceName</code> 与 <code>serviceShowName</code> 两个字段。</p>
+
+<h2>3.5 参数编码规则</h2>
+<p><code>service</code> 与 <code>queryString</code> 在提交时需要<b>两次 URL 编码</b>：</p>
+<pre><code>中国移动(CMCC NET)
+  → %E4%B8%AD%E5%9B%BD%E7%A7%BB%E5%8A%A8(CMCC%20NET)     第一次
+  → %25E4%25B8%25AD...(CMCC%2520NET)                     第二次</code></pre>
+<p>使用 Python 的 <code>requests</code> 传字典会自动编码一次，叠加后变成三次，反而失败。必须手工拼接请求体。括号是 JS <code>encodeURIComponent</code> 的保留字符，不参与编码。</p>
+
+<h1>四、核心实现要点</h1>
+
+<h2>4.1 在线状态判定</h2>
+<pre><code>def probe(cfg):
+    for url in ("http://www.baidu.com", "http://connect.rom.miui.com/generate_204"):
+        code, hdrs, body = fetch(url, cfg, timeout=8)
+        text = body.decode("utf-8", "ignore")
+        blob = (hdrs.get("Location", "") + " " + text[:4000]).lower()
+        if "eportal" in blob:
+            return "offline"      # 被劫持到门户页
+        if code == 200 or code in (301, 302, 303, 307, 308):
+            return "online"
+    return "unknown"</code></pre>
+<p>判据是<b>响应内容是否包含门户地址</b>，而非状态码。这是 3.1 节那个陷阱的直接应对。</p>
+
+<h2>4.2 提交认证</h2>
+<pre><code>payload = ("userId=%s&password=%s&service=%s&queryString=%s"
+           "&operatorPwd=&operatorUserId=&validcode=&passwordEncrypt=false"
+           % (euc(uid), euc(pwd), euc(euc(service_name)), euc(euc(query_raw))))
+
+fetch(portal + "/eportal/InterFace.do?method=login",
+      data=payload.encode("utf-8"), referer=idx_url)</code></pre>
+<p>返回为 JSON：成功时 <code>{"result":"success","userIndex":"..."}</code>，失败时 <code>result</code> 为 <code>fail</code> 并带中文错误描述。</p>
+
+<h2>4.3 错误的语义映射</h2>
+<table>
+<tr><th style="width:38%">服务端返回</th><th>实际含义</th></tr>
+<tr><td>用户不允许使用本服务</td><td>service 参数与账号绑定的套餐不符，或填了显示名而非提交值</td></tr>
+<tr><td>运营商用户认证失败 [运营商绑定账号错误]</td><td>选了运营商服务，但该账号未绑定此运营商</td></tr>
+<tr><td>密码错误 / 认证失败</td><td>账号或密码有误</td></tr>
+<tr><td>result: success 但复验仍离线</td><td>认证成功但 IP 绑定未生效，通常需要短暂等待</td></tr>
+</table>
+
+<h1>五、开机自启与权限模型</h1>
+
+<h2>5.1 为什么必须用「启动时」触发器</h2>
+<p>Windows 任务计划有两类触发器：</p>
+<ul>
+  <li><b>计算机启动时（BootTrigger）</b>——在用户登录界面出现<b>之前</b>触发，以 SYSTEM 身份运行，无需任何人输入 PIN</li>
+  <li><b>用户登录时（LogonTrigger）</b>——必须先登录桌面</li>
+</ul>
+<p>项目同时配置了两个触发器：BootTrigger 负责真正的开机场景，LogonTrigger 覆盖休眠唤醒等启动事件不触发的情况。</p>
+
+<div class="warn">
+<b>必须勾选「不管用户是否登录都要运行」。</b>默认创建的任务是「仅在用户登录时运行」，不修改此项，任务会停在等待状态，什么都不执行。
+</div>
+
+<h2>5.2 快速启动的陷阱</h2>
+<p>Windows 10/11 默认开启「启用快速启动」。这个功能让「关机」变成一种休眠——系统把内核状态写入 <code>hiberfil.sys</code>，下次开机直接恢复，<b>并没有执行完整启动流程</b>。</p>
+<p>后果是 BootTrigger <b>可能根本不触发</b>。表现极具迷惑性：手动测试一切正常，实际使用却时灵时不灵。</p>
+<p>解决：控制面板 → 电源选项 → 选择电源按钮的功能 → 更改当前不可用的设置 → 取消勾选「启用快速启动」。</p>
+
+<h2>5.3 权限模型</h2>
+<table>
+<tr><th style="width:26%">操作</th><th style="width:18%">是否需要管理员</th><th>实现方式</th></tr>
+<tr><td>查询任务状态</td><td>否</td><td>schtasks /query，失败时降级为普通查询</td></tr>
+<tr><td>创建 / 删除 / 启停任务</td><td><b>是</b></td><td>ShellExecuteW + runas，触发 UAC</td></tr>
+<tr><td>日常自动登录</td><td>否</td><td>任务本身以 SYSTEM 运行</td></tr>
+</table>
+
+<h1>六、疑难问题记录</h1>
+
+<table>
+<tr><th style="width:22%">现象</th><th style="width:40%">根因</th><th>修法</th></tr>
+
+<tr>
+  <td>未认证时被判定为已在线</td>
+  <td>网关返回 200 + JS 跳转，只判断状态码会误判</td>
+  <td>改为检查响应正文是否含 eportal</td>
+</tr>
+
+<tr>
+  <td>非移动账号登录报「用户不允许使用本服务」</td>
+  <td>提交的是下拉框显示名，而非 serviceName</td>
+  <td>建立显示名到提交值的映射，并动态拉取服务列表</td>
+</tr>
+
+<tr>
+  <td>程序显示「已启用」，但点停用无反应</td>
+  <td>不带 /v 查询时字段名是「模式」而非「状态」，解析永远落空</td>
+  <td>同时匹配「状态」与「模式」，兼容英文 Status/Mode</td>
+</tr>
+
+<tr>
+  <td>点安装自启提示「拒绝服务」</td>
+  <td>GUI 直接调用 schtasks，未提权</td>
+  <td>改为 ShellExecuteW 以 runas 方式启动</td>
+</tr>
+
+<tr>
+  <td>提权操作始终无效果</td>
+  <td>-Verb RunAs 与 -WindowStyle Hidden 在参数集上冲突，命令解析失败且错误被吞</td>
+  <td>绕开命令行，直接调用 Windows API</td>
+</tr>
+
+<tr>
+  <td>普通用户打开程序显示「未安装」</td>
+  <td>查询 SYSTEM 任务的 /v 详情需要权限，返回非零码</td>
+  <td>查询失败时降级为普通查询，拿不到运行命令则跳过路径比对</td>
+</tr>
+
+<tr>
+  <td>移动文件夹后开机不自启</td>
+  <td>任务计划只能存绝对路径，移动后指向不存在的文件</td>
+  <td>记录安装时路径，启动时比对并提示重新安装</td>
+</tr>
+
+<tr>
+  <td>把 config.json 拷到别的电脑后静默失败</td>
+  <td>DPAPI 为机器级加密，换机器无法解密</td>
+  <td>解密失败时在界面明确提示，而非静默退出</td>
+</tr>
+</table>
+
+<h1>七、打包与分发策略</h1>
+
+<h2>7.1 单文件 vs 文件夹</h2>
+<table>
+<tr><th style="width:22%">对比项</th><th>onefile（单文件）</th><th>onedir（文件夹）</th></tr>
+<tr><td>体积</td><td>约 12 MB</td><td>exe 2 MB + 依赖目录</td></tr>
+<tr><td>启动</td><td>先自解压到临时目录，慢 2–4 秒</td><td>直接运行</td></tr>
+<tr><td>杀软观感</td><td>自解压行为与木马高度相似，<b>误报率高</b></td><td>正常程序目录，误报率低</td></tr>
+<tr><td>结论</td><td>—</td><td><b>采用</b></td></tr>
+</table>
+
+<p>使用 <code>--contents-directory runtime</code> 可将依赖目录重命名，最终结构为：</p>
+<pre><code>CampusAutoLogin/
+├── CampusAutoLogin.exe
+├── runtime/              （依赖，不可单独移动）
+├── 使用说明.txt
+└── 安装开机自启.bat</code></pre>
+
+<h2>7.2 SmartScreen 与误报</h2>
+<p>未签名的 exe 必然触发 SmartScreen「未知发布者」警告。这是签名问题，与打包方式无关，个人开发者难以规避（代码签名证书年费数千元）。</p>
+<div class="note">
+<b>测试陷阱：</b>本地压缩的 zip 没有「网络来源标记」（Zone.Identifier），解压出的 exe 不会触发 SmartScreen；而用户从 GitHub 下载的 zip 带有该标记，exe 会继承它并触发拦截。要复现真实场景，需给 exe 手动写入：
+<pre style="margin:6px 0 0 0"><code>Add-Content -Path app.exe -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"</code></pre>
+</div>
+<p>本项目在 VirusTotal 上的检出率为 60+ 引擎中的 1 个，属典型的启发式误报。</p>
+
+<h1>八、安全设计</h1>
+
+<h2>8.1 密码存储</h2>
+<p>使用 Windows DPAPI 加密，关键在于选择<b>机器级</b>而非用户级：</p>
+<pre><code>CryptProtectData(&amp;in, NULL, NULL, NULL, NULL,
+                 CRYPTPROTECT_LOCAL_MACHINE, &amp;out);</code></pre>
+<div class="warn">
+若使用用户级加密（标志传 0），开机时以 SYSTEM 身份运行的任务<b>将无法解密</b>，自动登录必然失败。机器级虽降低了隔离强度，但同机任何身份均可解密，是本场景的唯一可行选择。
+</div>
+<p>加密结果存入 <code>config.json</code>。该文件被拷到其他电脑后无法解密，等同乱码。</p>
+
+<h2>8.2 敏感信息隔离</h2>
+<ul>
+  <li>源码中<b>不含</b>任何账号、密码、IP 或用户名</li>
+  <li>开发期的调试脚本与真实配置隔离在 <code>_private/</code>，并写入 <code>.gitignore</code></li>
+  <li>日志中不记录密码，仅记录提交的服务名与返回结果</li>
+</ul>
+
+<h2>8.3 内存中的明文</h2>
+<p>提交认证时密码必须以明文还原，这是协议要求。程序仅在内存中短暂持有，不落盘、不写日志。这一环节无法进一步加固。</p>
+
+<h1>九、局限与后续方向</h1>
+
+<h2>9.1 已知局限</h2>
+<ul>
+  <li><b>仅适配河海大学</b>。其他学校若使用不同认证系统或启用了 RSA 加密，需重新分析协议。</li>
+  <li><b>不提供定时保活</b>。校园网存在 1–2 天强制下线的情况，当前仅覆盖开机与登录两个时机。</li>
+  <li><b>任务路径不可相对化</b>。Windows 任务计划只接受绝对路径，移动文件夹后需重新安装。</li>
+  <li><b>非管理员读不到任务运行命令</b>，路径比对依赖本地记录的安装路径，属间接判断。</li>
+</ul>
+
+<h2>9.2 可选演进</h2>
+<ol>
+  <li><b>定时心跳守卫</b>：每小时探测一次，掉线自动重连，可解决长时间挂机断网。</li>
+  <li><b>多配置切换</b>：支持保存多组账号/服务，适配多校区或多环境。</li>
+  <li><b>服务列表本地缓存</b>：离线时也能展示完整运营商选项。</li>
+  <li><b>自动更新检查</b>：启动时比对 GitHub Releases 版本号。</li>
+</ol>
+
+<h1>附录、接口参数速查</h1>
+
+<h2>A.1 认证接口</h2>
+<table class="kv">
+<tr><td>URL</td><td><code>POST /eportal/InterFace.do?method=login</code></td></tr>
+<tr><td>Content-Type</td><td>application/x-www-form-urlencoded; charset=UTF-8</td></tr>
+<tr><td>Referer</td><td>门户 index.jsp 的完整地址</td></tr>
+</table>
+
+<table>
+<tr><th style="width:24%">参数</th><th style="width:16%">必填</th><th>说明</th></tr>
+<tr><td>userId</td><td>是</td><td>学号</td></tr>
+<tr><td>password</td><td>是</td><td>明文密码（passwordEncrypt=false 时）</td></tr>
+<tr><td>service</td><td>是</td><td>运营商提交值，需双重 URL 编码</td></tr>
+<tr><td>queryString</td><td>是</td><td>会话参数串，需双重 URL 编码</td></tr>
+<tr><td>passwordEncrypt</td><td>是</td><td>固定 <code>false</code></td></tr>
+<tr><td>operatorPwd / operatorUserId / validcode</td><td>否</td><td>留空</td></tr>
+</table>
+
+<h2>A.2 服务列表接口</h2>
+<table class="kv">
+<tr><td>URL</td><td><code>GET /eportal/InterFace.do?method=getServices</code></td></tr>
+<tr><td>用途</td><td>获取可用运营商列表，无需登录</td></tr>
+<tr><td>返回</td><td>JSON，<code>services</code> 数组含 serviceName 与 serviceShowName</td></tr>
+</table>
+
+<h2>A.3 注销与状态查询</h2>
+<table class="kv">
+<tr><td>注销</td><td><code>POST /eportal/InterFace.do?method=logout</code>，body 传 userIndex</td></tr>
+<tr><td>在线信息</td><td><code>GET /eportal/InterFace.do?method=getOnlineUserInfo</code></td></tr>
+</table>
+
+<h2>A.4 userIndex 结构</h2>
+<p>形如 <code>3234316562...</code> 的十六进制串，两位一组转 ASCII 后为：</p>
+<pre><code>{32位十六进制标识}_{本机内网IP}_{学号}</code></pre>
+<p>该值由服务端会话生成，每次登录不同，不可自行构造。</p>
+
+<p class="small" style="margin-top:28px; border-top:1px solid #d3dbe4; padding-top:10px;">
+本文档由项目开发过程整理而成，可与 <code>README.md</code> 配合阅读。README 面向使用者，本文档面向开发者与后续维护者。
+</p>
+
+</body>
+</html>
