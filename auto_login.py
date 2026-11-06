@@ -408,8 +408,10 @@ def read_task():
     disabled = False
     for line in r.stdout.splitlines():
         s = line.strip()
-        if s.startswith("状态") or s.lower().startswith("status"):
-            disabled = ("禁用" in s) or ("disabled" in s.lower())
+        low = s.lower()
+        if (s.startswith("状态") or s.startswith("模式")
+                or low.startswith("status") or low.startswith("mode")):
+            disabled = ("禁用" in s) or ("disabled" in low)
             break
 
     low = r.stdout.lower()
@@ -476,14 +478,19 @@ def task_xml():
 
 
 def elevated_schtasks(args):
-    quoted = ", ".join("'%s'" % a.replace("'", "''") for a in args)
-    ps = ("Start-Process -FilePath schtasks.exe -ArgumentList @(%s) "
-          "-Verb RunAs -Wait -WindowStyle Hidden" % quoted)
+    """以管理员身份执行 schtasks。
+
+    返回 True 表示成功发起了提权进程（不代表命令本身执行成功）。
+    UAC 被拒绝时返回 False。
+    """
     try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps],
-                       capture_output=True, timeout=90)
+        argline = " ".join(('"%s"' % a) if (" " in a or os.sep in a) else a
+                           for a in args)
+        rc = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", "schtasks.exe", argline, None, 0)
+        return rc > 32
     except Exception:
-        pass
+        return False
 
 
 def install_task():
@@ -749,21 +756,33 @@ def gui():
                     with open(xml_path, "w", encoding="utf-16") as f:
                         f.write(task_xml())
                     append("正在请求管理员权限安装开机任务，请在弹窗中选「是」...")
-                    elevated_schtasks(["/create", "/f", "/tn", TASK_NAME, "/xml", xml_path])
+                    started = elevated_schtasks(
+                        ["/create", "/f", "/tn", TASK_NAME, "/xml", xml_path])
                 else:
                     flag = "/enable" if st["disabled"] else "/disable"
                     append("正在请求管理员权限"
                            + ("启用" if st["disabled"] else "停用")
                            + "开机自启，请在弹窗中选「是」...")
-                    elevated_schtasks(["/change", "/tn", TASK_NAME, flag])
-                time.sleep(2)
+                    started = elevated_schtasks(["/change", "/tn", TASK_NAME, flag])
+
+                if not started:
+                    append("提权未成功：UAC 被取消，或系统策略禁止")
+                    root.after(0, refresh)
+                    return
+
+                time.sleep(3)
                 name, inst, dis, mt = read_task()
                 if (not was_installed) and inst and mt:
                     append("安装完成，开机自启已启用")
                 elif was_installed and (dis != was_disabled):
                     append("操作完成，当前状态：" + name)
                 else:
-                    append("未见变化。可能取消了 UAC 授权，或权限不足")
+                    append("命令已发出，但状态未变化。")
+                    append("请在管理员 CMD 中手动执行下面这条，看真实报错：")
+                    append('  schtasks %s'
+                           % ("/change /tn %s /disable" % TASK_NAME
+                              if not st["disabled"]
+                              else "/change /tn %s /enable" % TASK_NAME))
             except Exception as e:
                 append("操作失败：%s" % e)
             root.after(0, refresh)
