@@ -1,0 +1,23 @@
+# 本地配置与运行数据（含账号信息，切勿提交）
+config.json
+config.ini
+state.json
+task.xml
+logs/
+_private/
+
+# 构建产物
+build/
+dist/
+__pycache__/
+*.pyc
+*.spec
+
+# 系统文件
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 发布包与解压目录
+*.zip
+CampusAutoLogin-v*/
