@@ -39,13 +39,19 @@ TASK_NAME = "HHU_AutoLogin"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0")
 
-SERVICES = ["中国移动(CMCC NET)", "校园网(Campus NET)",
-            "中国电信(CTCC NET)", "中国联通(CUCC NET)"]
+BUILTIN_SERVICES = [
+    ("校园网(Campus NET)", "校园外网服务(out-campus NET)"),
+    ("中国移动(CMCC NET)", "中国移动(CMCC NET)"),
+    ("中国电信(CTCC NET)", "中国电信(常州)"),
+    ("中国联通(CUCC NET)", "中国联通(常州)"),
+]
+SERVICE_MAP = dict(BUILTIN_SERVICES)
+SERVICE_NAMES = [x[0] for x in BUILTIN_SERVICES]
 
 DEFAULTS = {
     "user_id": "",
     "password_enc": "",
-    "service": SERVICES[0],
+    "service": SERVICE_NAMES[0],
     "host": "eportal.hhu.edu.cn",
     "ip_fallback": "",
     "portal_wait": 180,
@@ -240,6 +246,30 @@ def extract_query(loc, text):
     return ""
 
 
+def service_value(name):
+    """界面显示名 → 实际提交的 access type"""
+    return SERVICE_MAP.get(name, name)
+
+
+def fetch_services(cfg, timeout=4):
+    """从门户动态拉取服务列表；失败则退回内置列表"""
+    try:
+        url = portal_host(cfg) + "/eportal/InterFace.do?method=getServices"
+        code, _, body = fetch(url, cfg, timeout=timeout)
+        text = body.decode("utf-8", "ignore") if isinstance(body, bytes) else str(body)
+        data = json.loads(text)
+        items = re.findall(r"selectService\('([^']*)','([^']*)','([^']*)'\)",
+                           data.get("serviceContent", ""))
+        out = [(disp, val) for val, disp, _idx in items]
+        if out:
+            for disp, val in out:
+                SERVICE_MAP[disp] = val
+            return out
+    except Exception:
+        pass
+    return list(BUILTIN_SERVICES)
+
+
 def wait_portal(cfg, timeout=None):
     timeout = timeout or int(cfg.get("portal_wait", 180))
     host = cfg.get("host", "eportal.hhu.edu.cn")
@@ -264,7 +294,7 @@ def do_login(cfg, query_raw, idx_hint=""):
         ("%s/eportal/index.jsp?%s" % (portal_host(cfg), query_raw))
     payload = ("userId=%s&password=%s&service=%s&queryString=%s"
                "&operatorPwd=&operatorUserId=&validcode=&passwordEncrypt=false"
-               % (euc(cfg["user_id"]), euc(pwd), euc(euc(cfg["service"])),
+               % (euc(cfg["user_id"]), euc(pwd), euc(euc(service_value(cfg.get("service", "")))),
                   euc(euc(query_raw))))
     code, _, resp = fetch(portal_host(cfg) + "/eportal/InterFace.do?method=login",
                           cfg, data=payload.encode("utf-8"), referer=idx_url)
@@ -615,10 +645,17 @@ def gui():
         eye.config(command=toggle_eye)
 
         tk.Label(body, text="运营商", font=F).grid(row=2, column=0, sticky="w", pady=6)
-        svc_var = tk.StringVar(value=cfg.get("service", SERVICES[0]))
-        cb = ttk.Combobox(body, textvariable=svc_var, values=SERVICES,
+        svc_var = tk.StringVar(value=cfg.get("service", SERVICE_NAMES[0]))
+        cb = ttk.Combobox(body, textvariable=svc_var, values=SERVICE_NAMES,
                           state="readonly", width=26, font=F)
         cb.grid(row=2, column=1, sticky="w", pady=6)
+
+        def reload_services():
+            items = fetch_services(cfg)
+            names = [d for d, _ in items]
+            if names:
+                root.after(0, lambda: cb.config(values=names))
+        threading.Thread(target=reload_services, daemon=True).start()
 
         tk.Label(win, text="密码使用 Windows 本机加密保存，不以明文写入磁盘",
                  font=FS, fg="#8a8a8a").pack(pady=(0, 4))
