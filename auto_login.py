@@ -163,6 +163,13 @@ def save_state(st):
         pass
 
 
+def current_exe():
+    """当前程序的绝对路径（源码模式返回脚本路径）"""
+    if getattr(sys, "frozen", False):
+        return os.path.abspath(sys.executable)
+    return os.path.abspath(__file__)
+
+
 def get_password(cfg):
     enc = cfg.get("password_enc", "")
     if not enc:
@@ -502,6 +509,9 @@ def install_task():
     if r.returncode == 0:
         subprocess.run(["schtasks", "/change", "/tn", TASK_NAME, "/enable"],
                        capture_output=True, text=True, errors="ignore")
+        s = load_state()
+        s["installed_exe"] = current_exe()
+        save_state(s)
     return r.returncode == 0, (r.stdout or r.stderr or "")
 
 
@@ -601,6 +611,12 @@ def gui():
             b.config(state=state)
 
     def apply(net_state, name, inst, dis, matches):
+        s = load_state()
+        rec = s.get("installed_exe", "")
+        moved = bool(inst and rec and os.path.normcase(rec) != os.path.normcase(current_exe()))
+        if moved:
+            matches = False
+
         color = {"online": "#0a7d33", "offline": "#c0392b"}.get(net_state, "#7f8c8d")
         net_var.set({"online": "已连接", "offline": "未认证"}.get(net_state, "未知"))
         net_lb.config(fg=color)
@@ -613,10 +629,12 @@ def gui():
             btn_auto.config(text="更新自启")
         else:
             btn_auto.config(text=("启用自启" if dis else "停用自启"))
+
         cfg = load_config()
         acc_var.set(cfg["user_id"] if (cfg and cfg.get("user_id")) else "未设置")
-        s = load_state()
-        if int(s.get("fail_count", 0)) >= 3:
+        if moved:
+            warn_var.set("程序所在路径已变更，开机自启会失效，请点「更新自启」")
+        elif int(s.get("fail_count", 0)) >= 3:
             warn_var.set("连续登录失败，密码可能已修改，请点「设置」重新输入")
         elif s.get("last_result") == "fail":
             warn_var.set("上次自动登录未成功")
@@ -748,6 +766,7 @@ def gui():
             return
         set_busy(True)
         was_installed, was_disabled = st["installed"], st["disabled"]
+        was_matches = st["matches"]
 
         def work():
             try:
@@ -772,8 +791,11 @@ def gui():
 
                 time.sleep(3)
                 name, inst, dis, mt = read_task()
-                if (not was_installed) and inst and mt:
-                    append("安装完成，开机自启已启用")
+                if inst and ((not was_installed) or (not was_matches)):
+                    s2 = load_state()
+                    s2["installed_exe"] = current_exe()
+                    save_state(s2)
+                    append("安装完成，当前状态：" + name)
                 elif was_installed and (dis != was_disabled):
                     append("操作完成，当前状态：" + name)
                 else:
