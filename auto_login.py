@@ -384,14 +384,26 @@ def run_once():
 
 # ---------------------------------------------------------------- 任务计划
 def read_task():
-    """返回 (状态文字, 是否已安装, 是否已停用, 是否指向当前程序)"""
-    try:
-        r = subprocess.run(["schtasks", "/query", "/tn", TASK_NAME, "/fo", "LIST", "/v"],
-                           capture_output=True, text=True, errors="ignore", timeout=10)
-    except Exception:
-        return "未安装", False, False, False
-    if r.returncode != 0:
-        return "未安装", False, False, False
+    """返回 (状态文字, 是否已安装, 是否已停用, 是否指向当前程序)
+
+    普通用户查询 SYSTEM 任务的 /v 详细信息可能被拒绝，
+    此时退回普通查询（拿不到运行命令，因此无法判断是否需要更新）。
+    """
+    def query(verbose):
+        args = ["schtasks", "/query", "/tn", TASK_NAME, "/fo", "LIST"]
+        if verbose:
+            args.append("/v")
+        try:
+            return subprocess.run(args, capture_output=True, text=True,
+                                  errors="ignore", timeout=10)
+        except Exception:
+            return None
+
+    r = query(True)
+    if r is None or r.returncode != 0:
+        r = query(False)
+    if r is None or r.returncode != 0:
+        return "未安装", False, False, True
 
     disabled = False
     for line in r.stdout.splitlines():
@@ -402,7 +414,10 @@ def read_task():
 
     low = r.stdout.lower()
     cur = sys.executable.lower()
-    matches = (cur in low) or ("auto_login.py" in low and not getattr(sys, "frozen", False))
+    matches = True
+    if ("要运行的任务" in r.stdout) or ("task to run" in low):
+        matches = (cur in low) or ("auto_login.py" in low
+                                   and not getattr(sys, "frozen", False))
     return ("已停用" if disabled else "已启用"), True, disabled, matches
 
 
@@ -725,21 +740,32 @@ def gui():
         if st["busy"]:
             return
         set_busy(True)
+        was_installed, was_disabled = st["installed"], st["disabled"]
 
         def work():
             try:
                 if (not st["installed"]) or (not st["matches"]):
-                    append("正在安装开机任务，请在系统弹窗中允许...")
-                    ok, msg = install_task()
-                    append("安装成功" if ok else "安装失败：" + msg[:200])
+                    xml_path = os.path.join(BASE, "task.xml")
+                    with open(xml_path, "w", encoding="utf-16") as f:
+                        f.write(task_xml())
+                    append("正在请求管理员权限安装开机任务，请在弹窗中选「是」...")
+                    elevated_schtasks(["/create", "/f", "/tn", TASK_NAME, "/xml", xml_path])
                 else:
-                    append("正在" + ("启用" if st["disabled"] else "停用") + "开机自启...")
-                    ok, msg = toggle_task()
-                    append(("已" + ("启用" if st["disabled"] else "停用"))
-                           if ok else "操作失败：" + msg[:200])
+                    flag = "/enable" if st["disabled"] else "/disable"
+                    append("正在请求管理员权限"
+                           + ("启用" if st["disabled"] else "停用")
+                           + "开机自启，请在弹窗中选「是」...")
+                    elevated_schtasks(["/change", "/tn", TASK_NAME, flag])
+                time.sleep(2)
+                name, inst, dis, mt = read_task()
+                if (not was_installed) and inst and mt:
+                    append("安装完成，开机自启已启用")
+                elif was_installed and (dis != was_disabled):
+                    append("操作完成，当前状态：" + name)
+                else:
+                    append("未见变化。可能取消了 UAC 授权，或权限不足")
             except Exception as e:
                 append("操作失败：%s" % e)
-            time.sleep(1)
             root.after(0, refresh)
         threading.Thread(target=work, daemon=True).start()
 
